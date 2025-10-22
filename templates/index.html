@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome to ShadowChat{% endblock %}
+
+{% block content %}
+<div class="hero-container">
+    <header class="hero-header">
+        <h1>ShadowChat</h1>
+        <p class="tagline">Real-time, private messaging built on a foundation of security.</p>
+    </header>
+
+    <main class="hero-main">
+        <div class="cta-buttons">
+            <a href="{{ url_for('login') }}" class="btn btn-primary">Login to Your Account</a>
+            <a href="{{ url_for('register') }}" class="btn btn-secondary">Create a New Account</a>
+        </div>
+    </main>
+
+    <section class="features-section">
+        <div class="feature-item">
+            <i class="fas fa-bolt"></i>
+            <h3>Real-Time</h3>
+            <p>Instantly connect and message with others.</p>
+        </div>
+        <div class="feature-item">
+            <i class="fas fa-shield-alt"></i>
+            <h3>Secure</h3>
+            <p>Built with modern security principles at its core.</p>
+        </div>
+        <div class="feature-item">
+            <i class="fas fa-lock"></i>
+            <h3>Private</h3>
+            <p>Your conversations, encrypted and protected.</p>
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Login - ShadowChat{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-form">
+        <h2>Welcome Back</h2>
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+            <fieldset>
+                <div class="form-group">
+                    {{ form.email.label }}
+                    {% if form.email.errors %}
+                        {{ form.email(class="form-control form-control-invalid") }}
+                        <div class="invalid-feedback">
+                            {% for error in form.email.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        {{ form.email(class="form-control") }}
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    {{ form.password.label }}
+                    {% if form.password.errors %}
+                        {{ form.password(class="form-control form-control-invalid") }}
+                        <div class="invalid-feedback">
+                            {% for error in form.password.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        {{ form.password(class="form-control") }}
+                    {% endif %}
+                </div>
+                <div class="form-group-checkbox">
+                    {{ form.remember() }}
+                    {{ form.remember.label }}
+                </div>
+            </fieldset>
+            <div class="form-group">
+                {{ form.submit(class="btn-submit") }}
+            </div>
+        </form>
+    </div>
+    <div class="auth-link">
+        Need an account? <a href="{{ url_for('register') }}">Sign Up</a>
+    </div>
+</div>
+{% endblock %}

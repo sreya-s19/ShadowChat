@@ -1,0 +1,24 @@
+# Virtual Environment
+# This folder contains hundreds of files and is specific to your machine.
+# It should always be ignored.
+venv/
+.venv/
+
+# Environment Variables File
+# CRITICAL: This file contains your secret keys and must NEVER be public.
+.env
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Instance Folder
+# This contains the SQLite database which changes frequently.
+# We don't want to track database changes in Git.
+instance/
+
+# VS Code settings
+.vscode/
+
+# macOS folder attributes
+.DS_Store

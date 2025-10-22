@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShadowChat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+
+<div class="chat-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="user-profile">
+                <div class="avatar" data-initial="{{ current_user.username[0].upper() }}"></div>
+                <span>{{ current_user.username }}</span>
+            </div>
+            <a href="{{ url_for('logout') }}" class="logout-btn"><i class="fas fa-sign-out-alt"></i></a>
+        </div>
+        <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="Search">
+        </div>
+        <div class="user-list" id="user-list">
+            {% for user in users %}
+                <div class="user-item" data-id="{{ user.id }}" data-username="{{ user.username }}">
+                    <div class="avatar" data-initial="{{ user.username[0].upper() }}">
+                        <span class="status-dot offline" id="status-{{ user.id }}"></span>
+                    </div>
+                    <div class="user-info">
+                        <span class="username">{{ user.username }}</span>
+                        <span class="last-message"></span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="chat-area">
+        <div class="chat-header">
+            <div class="user-profile" id="chat-header-profile" style="display: none;">
+                <div class="avatar" id="chat-header-avatar"></div>
+                <div>
+                    <span id="chat-header-username"></span>
+                    <small id="chat-header-status"></small>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="welcome-message">
+                <h2>Select a user to start chatting</h2>
+                <p>Your conversations are secure.</p>
+            </div>
+        </div>
+
+        <div class="chat-input-area" id="chat-input-area" style="display: none;">
+            <form id="message-form">
+                <input type="text" id="message-input" placeholder="Type your message here..." autocomplete="off">
+                <div class="encryption-toggle">
+                    <input type="checkbox" id="encrypt-checkbox">
+                    <label for="encrypt-checkbox">Encrypt</label>
+                </div>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Socket.IO Client Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+<!-- Client-side JavaScript -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const socket = io();
+
+        const currentUser = {
+            id: {{ current_user.id }},
+            username: "{{ current_user.username }}"
+        };
+
+        let selectedUserId = null;
+        let typingTimer;
+        const TYPING_TIMER_LENGTH = 1500; // ms
+
+        // DOM Elements
+        const userList = document.getElementById('user-list');
+        const chatHeaderProfile = document.getElementById('chat-header-profile');
+        const chatHeaderAvatar = document.getElementById('chat-header-avatar');
+        const chatHeaderUsername = document.getElementById('chat-header-username');
+        const chatHeaderStatus = document.getElementById('chat-header-status');
+        const chatMessages = document.getElementById('chat-messages');
+        const chatInputArea = document.getElementById('chat-input-area');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const encryptCheckbox = document.getElementById('encrypt-checkbox');
+        const searchInput = document.querySelector('.search-bar input');
+
+        // --- Socket.IO Event Listeners ---
+        socket.on('connect', () => console.log('Connected to server'));
+
+        socket.on('update_user_list', (onlineUsers) => {
+            document.querySelectorAll('.status-dot').forEach(dot => {
+                dot.classList.remove('online');
+                dot.classList.add('offline');
+            });
+            onlineUsers.forEach(userId => {
+                document.getElementById(`status-${userId}`)?.classList.remove('offline');
+                document.getElementById(`status-${userId}`)?.classList.add('online');
+            });
+            if (selectedUserId && chatHeaderStatus) {
+                chatHeaderStatus.textContent = onlineUsers.includes(parseInt(selectedUserId)) ? 'Online' : 'Offline';
+            }
+        });
+
+        socket.on('receive_message', (data) => {
+            if (data.sender_id == selectedUserId || (data.sender_id == currentUser.id && data.recipient_id == selectedUserId)) {
+                appendMessage(data);
+                if(data.sender_id == selectedUserId) {
+                    const isOnline = document.getElementById(`status-${selectedUserId}`).classList.contains('online');
+                    chatHeaderStatus.textContent = isOnline ? 'Online' : 'Offline';
+                }
+            }
+            updateSidebar(data.sender_id, data.recipient_id, data.body);
+        });
+
+        socket.on('chat_history', (messages) => {
+            chatMessages.innerHTML = ''; // Clear previous messages
+            messages.forEach(msg => appendMessage(msg));
+        });
+
+        socket.on('typing_status', (data) => {
+            if (data.sender_id == selectedUserId) {
+                const isOnline = document.getElementById(`status-${selectedUserId}`).classList.contains('online');
+                chatHeaderStatus.textContent = data.is_typing ? 'is typing...' : (isOnline ? 'Online' : 'Offline');
+            }
+        });
+
+        socket.on('decryption_result', (data) => {
+            const messageContentEl = document.querySelector(`#message-${data.message_id} .message-content`);
+            const messageMetaEl = document.querySelector(`#message-${data.message_id} .message-meta`);
+            if (messageContentEl) {
+                messageContentEl.textContent = data.plaintext;
+                messageContentEl.classList.remove('ciphertext');
+            }
+            if (messageMetaEl) {
+                messageMetaEl.innerHTML = `<span class="encrypted-tag"><i class="fas fa-lock-open"></i> Decrypted</span><span class="message-timestamp">${messageMetaEl.querySelector('.message-timestamp').textContent}</span>`;
+            }
+        });
+
+        // --- DOM Event Listeners ---
+        userList.addEventListener('click', (event) => {
+            const userItem = event.target.closest('.user-item');
+            if (userItem && userItem.dataset.id !== selectedUserId) {
+                selectedUserId = userItem.dataset.id;
+                const username = userItem.dataset.username;
+                document.querySelectorAll('.user-item.active').forEach(item => item.classList.remove('active'));
+                userItem.classList.add('active');
+                chatHeaderUsername.textContent = username;
+                chatHeaderAvatar.dataset.initial = username[0].toUpperCase();
+                const isOnline = document.getElementById(`status-${selectedUserId}`).classList.contains('online');
+                chatHeaderStatus.textContent = isOnline ? 'Online' : 'Offline';
+                chatHeaderProfile.style.display = 'flex';
+                chatInputArea.style.display = 'block';
+                document.querySelector('.welcome-message')?.remove();
+                
+                const unreadBadge = userItem.querySelector('.unread-badge');
+                if (unreadBadge) {
+                    unreadBadge.remove();
+                }
+
+                socket.emit('get_history', { 'recipient_id': selectedUserId });
+            }
+        });
+        
+        messageForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const message = messageInput.value.trim();
+            if (message && selectedUserId) {
+                socket.emit('send_message', {
+                    recipient_id: selectedUserId,
+                    body: message,
+                    is_encrypted: encryptCheckbox.checked
+                });
+                messageInput.value = '';
+                socket.emit('typing', { recipient_id: selectedUserId, is_typing: false });
+            }
+        });
+
+        messageInput.addEventListener('input', () => {
+            clearTimeout(typingTimer);
+            if (messageInput.value) {
+                socket.emit('typing', { recipient_id: selectedUserId, is_typing: true });
+                typingTimer = setTimeout(() => {
+                    socket.emit('typing', { recipient_id: selectedUserId, is_typing: false });
+                }, TYPING_TIMER_LENGTH);
+            } else {
+                socket.emit('typing', { recipient_id: selectedUserId, is_typing: false });
+            }
+        });
+
+        chatMessages.addEventListener('click', (event) => {
+            if (event.target.classList.contains('decrypt-btn')) {
+                const messageId = event.target.dataset.messageId;
+                socket.emit('decrypt_message', { 'message_id': messageId });
+                event.target.textContent = 'Decrypting...';
+                event.target.disabled = true;
+            }
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const userItems = document.querySelectorAll('.user-list .user-item');
+            userItems.forEach(item => {
+                const username = item.dataset.username.toLowerCase();
+                if (username.includes(searchTerm)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+
+        // --- Helper Functions ---
+        function formatTimestamp(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        }
+
+        function appendMessage(msgData) {
+            const isSent = msgData.sender_id === currentUser.id;
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message-item', isSent ? 'sent' : 'received');
+            messageElement.id = `message-${msgData.message_id}`;
+            
+            if (msgData.alert) {
+                messageElement.classList.add('message-alert');
+            }
+
+            let metaContent = '';
+            let contentClass = '';
+            if (msgData.is_encrypted) {
+                metaContent = `<button class="decrypt-btn" data-message-id="${msgData.message_id}"><i class="fas fa-lock"></i> Decrypt</button>`;
+                contentClass = 'ciphertext';
+            }
+
+            messageElement.innerHTML = `
+                <div class="message-bubble">
+                    ${!isSent ? `<div class="message-sender">${msgData.sender_username}</div>` : ''}
+                    <div class="message-content ${contentClass}">${msgData.body}</div>
+                    <div class="message-meta">
+                        ${metaContent}
+                        <span class="message-timestamp">${formatTimestamp(msgData.timestamp)}</span>
+                    </div>
+                </div>
+            `;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function updateSidebar(senderId, recipientId, message) {
+            const otherUserId = senderId === currentUser.id ? recipientId : senderId;
+            const userItem = document.querySelector(`.user-item[data-id='${otherUserId}']`);
+
+            if (userItem) {
+                const lastMessageEl = userItem.querySelector('.last-message');
+                const truncatedMessage = message.length > 25 ? message.substring(0, 25) + '...' : message;
+                lastMessageEl.textContent = truncatedMessage;
+
+                if (otherUserId != selectedUserId && senderId !== currentUser.id) {
+                    let badge = userItem.querySelector('.unread-badge');
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.classList.add('unread-badge');
+                        userItem.appendChild(badge);
+                    }
+                    badge.textContent = parseInt(badge.textContent || 0) + 1;
+                }
+            }
+        }
+    }
+    );
+</script>
+
+</body>
+</html>
