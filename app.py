@@ -21,11 +21,11 @@ def create_app(config_class=Config):
 
     # Import models and create tables
     with app.app_context():
-        from securechat import models
+        import models
         db.create_all()
 
     # Import socket event handlers
-    from securechat import sockets
+    import sockets
 
     # --- Routes ---
     @app.route("/")
