@@ -1,10 +1,12 @@
 from flask import Flask, render_template, url_for, flash, redirect, request
 from flask_login import login_user, current_user, logout_user, login_required
 
-from securechat.config import Config
-from securechat.extensions import db, login_manager, bcrypt, socketio
-from securechat.models import User
-from securechat.forms import RegistrationForm, LoginForm
+from config import Config
+from extensions import db, login_manager, bcrypt, socketio
+from models import User
+from forms import RegistrationForm, LoginForm
+import sockets
+
 
 def create_app(config_class=Config):
     """Application factory function."""

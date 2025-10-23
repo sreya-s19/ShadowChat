@@ -4,8 +4,8 @@ from flask_login import current_user
 from flask_socketio import emit, join_room, leave_room
 from sqlalchemy import or_
 
-from .extensions import db, socketio
-from .models import User, Message
+from extensions import db, socketio
+from models import User, Message
 
 user_sid_map = {}
 

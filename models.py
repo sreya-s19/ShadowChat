@@ -2,7 +2,7 @@ import datetime
 from cryptography.fernet import Fernet
 from flask import current_app
 from flask_login import UserMixin
-from securechat.extensions import db, bcrypt, login_manager
+from extensions import db, bcrypt, login_manager
 
 @login_manager.user_loader
 def load_user(user_id):
