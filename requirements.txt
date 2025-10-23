@@ -10,3 +10,4 @@ email-validator
 bleach
 eventlet
 gunicorn
+psycopg2-binary
